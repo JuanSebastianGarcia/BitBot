@@ -239,6 +239,14 @@ class Cleaner:
         self.x_test.to_csv(os.path.join(output_dir, 'x_test.csv'), index=False)
         self.y_train.to_csv(os.path.join(output_dir, 'y_train.csv'), index=False)
         self.y_test.to_csv(os.path.join(output_dir, 'y_test.csv'), index=False)
+
+
+        output_dir = os.path.join(os.path.dirname(__file__), '../../datasets/')
+        self.x_train.to_csv(os.path.join(output_dir, 'x_train.csv'), index=False)
+        self.x_test.to_csv(os.path.join(output_dir, 'x_test.csv'), index=False)
+        self.y_train.to_csv(os.path.join(output_dir, 'y_train.csv'), index=False)
+        self.y_test.to_csv(os.path.join(output_dir, 'y_test.csv'), index=False)
+
         self.logger.info("Data saved successfully")
 
 
