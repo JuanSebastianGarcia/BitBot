@@ -112,11 +112,42 @@ class BalanceadorClases:
             Tuple of (X_balanced, y_balanced)
         """
         self.logger.info(f"Applying SMOTE with temporal safety")
-        self.logger.info(f"Parameters: sampling_strategy={sampling_strategy}, k_neighbors={k_neighbors}")
+        self.logger.info(f"Initial parameters: sampling_strategy={sampling_strategy}, k_neighbors={k_neighbors}")
 
         # Separate features and target
         X = self.data.drop(columns=[self.target_column])
         y = self.data[self.target_column]
+
+        # Analyze class distribution
+        class_counts = y.value_counts()
+        minority_class = class_counts.idxmin()
+        majority_class = class_counts.idxmax()
+        minority_count = class_counts[minority_class]
+        majority_count = class_counts[majority_class]
+        current_ratio = minority_count / majority_count
+
+        self.logger.info(f"Class distribution: Minority class ({minority_class}): {minority_count}, Majority class ({majority_class}): {majority_count}")
+        self.logger.info(f"Current ratio (minority/majority): {current_ratio:.4f}")
+
+        # Adjust k_neighbors if necessary
+        max_k_neighbors = minority_count - 1
+        if k_neighbors >= minority_count:
+            k_neighbors = max(1, max_k_neighbors)
+            self.logger.warning(f"k_neighbors adjusted to {k_neighbors} (minority class has only {minority_count} samples)")
+
+        # Adjust sampling_strategy if current ratio is already higher
+        if current_ratio >= sampling_strategy:
+            # Classes are already balanced or over-balanced
+            self.logger.warning(f"Current ratio ({current_ratio:.4f}) >= target ratio ({sampling_strategy})")
+            self.logger.warning("Classes are already balanced. Skipping SMOTE.")
+            return X, y
+
+        # Calculate required samples to reach target ratio
+        target_minority_count = int(majority_count * sampling_strategy)
+        samples_to_generate = target_minority_count - minority_count
+
+        self.logger.info(f"Target minority count: {target_minority_count}")
+        self.logger.info(f"Samples to generate: {samples_to_generate}")
 
         # Apply SMOTE
         smote = SMOTE(

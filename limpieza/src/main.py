@@ -26,8 +26,6 @@ class Cleaner:
 
     def main(self):
 
-        #exploracion
-        self._explore_data()
 
         #particion
         x_train, x_test, y_train, y_test = self.partition_data()
