@@ -6,16 +6,39 @@ from balance_clases import BalanceadorClases
 
 
 class Cleaner:
+    """
+    Handles data cleaning and preparation for machine learning models.
+
+    Processes include:
+    - Chronological data partitioning (train/test split)
+    - Categorical encoding
+    - Temporal column management
+    - Class balancing with SMOTE
+    """
 
     def __init__(self,
     file_name_to_load: str = 'data_grouped.csv',
     test_size: float = 0.2,
-    include_data_time: bool = False
+    include_data_time: bool = False,
+    sampling_strategy: float = 0.8
     ):
+        """
+        Initialize the Cleaner with configuration parameters.
+
+        Args:
+            file_name_to_load: Name of the CSV file to load from grouper/data directory
+            test_size: Proportion of dataset to include in test split (default: 0.2 = 20%)
+            include_data_time: Whether to keep temporal columns in features (default: False)
+            sampling_strategy: SMOTE balancing ratio - minority/majority class ratio target
+                             0.8 = 80% balanced (minority will be 80% of majority)
+                             1.0 = 100% balanced (equal class distribution)
+                             (default: 0.8)
+        """
         self.logger = logging.getLogger(__name__)
         self.load_data(file_name_to_load)
         self.test_size = test_size
         self.include_data_time = include_data_time
+        self.sampling_strategy = sampling_strategy
 
     def load_data(self, file_name: str):
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -25,7 +48,8 @@ class Cleaner:
         self.logger.info(f"Data loaded successfully from {file_path}")
 
     def main(self):
-
+        #exploracion
+        self._explore_data()
 
         #particion
         x_train, x_test, y_train, y_test = self.partition_data()
@@ -42,7 +66,7 @@ class Cleaner:
         self._handle_temporal_columns()
 
         #balanceo de clases
-        self._balance_classes()
+        self._balance_classes(sampling_strategy=self.sampling_strategy)
 
         #save data
         self.save_data()
@@ -158,9 +182,23 @@ class Cleaner:
         """
         Apply class balancing to training data using SMOTE with temporal safety.
 
+        This method uses SMOTE to generate synthetic samples for the minority class
+        to achieve a more balanced dataset. The actual balancing is performed by
+        BalanceadorClases which includes safety checks and automatic adjustments.
+
         Args:
-            sampling_strategy: Ratio of minority to majority class after resampling (default: 0.8)
-            k_neighbors: Number of nearest neighbors for SMOTE (default: 3)
+            sampling_strategy: Ratio of minority to majority class after resampling
+                             - 0.8: Minority class will be 80% of majority class size
+                             - 1.0: Perfect balance (50%-50% distribution)
+                             - If current ratio >= target, SMOTE is skipped
+                             (default: 0.8)
+            k_neighbors: Number of nearest neighbors for SMOTE interpolation
+                        Lower values create synthetic samples closer to existing ones
+                        (default: 3 for temporal data safety)
+
+        Note:
+            - SMOTE is automatically skipped if classes are already balanced
+            - k_neighbors is auto-adjusted if minority class has too few samples
         """
         # Combine x_train and y_train temporarily for balancing
         temp_df = self.x_train.copy()

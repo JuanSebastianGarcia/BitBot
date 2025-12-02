@@ -65,7 +65,8 @@ GROUPER_CONFIG = {
 CLEANING_CONFIG = {
     'file_name_to_load': 'data_grouped.csv',
     'test_size': 0.2,
-    'include_data_time':False
+    'include_data_time': False,
+    'sampling_strategy': 0.8  # SMOTE balancing ratio (0.8 = 80%, 1.0 = 100% balanced)
 }
 
 # Pipeline Execution Control

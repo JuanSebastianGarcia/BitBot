@@ -6,11 +6,53 @@ BitBot is a machine learning project focused on predicting Bitcoin (BTCUSDT) pri
 
 **Current Phase: Data Pipeline**
 
-This first phase of the project consists of a complete data pipeline that collects, groups, cleans, and prepares Bitcoin market data for machine learning model training and testing. The pipeline is designed to transform raw market data into structured, feature-rich datasets ready for supervised learning algorithms and model evaluation.
+This first phase consists of a complete automated data pipeline that collects, groups, cleans, and prepares Bitcoin market data for machine learning model training. The pipeline is fully configurable through a single orchestrator script ([main.py](main.py)) that manages all three processing stages.
 
-## Project Overview
+## Pipeline Orchestration
 
-The BitBot data pipeline is organized into three main components, each responsible for a specific stage of data processing:
+The entire pipeline can be executed from a single entry point:
+
+```bash
+python main.py
+```
+
+All pipeline parameters are configured in [main.py](main.py#L46-L70) through three configuration dictionaries:
+
+```python
+# Scraping Module Parameters
+SCRAPING_CONFIG = {
+    'candle_size': 1,                                      # Candle interval in minutes
+    'initial_date': datetime(2024, 1, 1, 1, 0, 0),        # Start date for data collection
+    'end_date': datetime(2025, 10, 20, 1, 0, 0),          # End date for data collection
+    'percentage_return_threshold': 0.05                    # Return threshold for trend classification
+}
+
+# Grouper Module Parameters
+GROUPER_CONFIG = {
+    'candle_size_to_traing': 5,                           # Number of candles per training sample
+    'candle_to_predict': 5,                               # Number of candles to predict ahead
+    'percentage_return_threshold': 0.0001                 # Minimum return threshold
+}
+
+# Cleaning Module Parameters
+CLEANING_CONFIG = {
+    'file_name_to_load': 'data_grouped.csv',              # Input file from grouper
+    'test_size': 0.2,                                     # Test set proportion (0.2 = 20%)
+    'include_data_time': False,                           # Include temporal features
+    'sampling_strategy': 0.8                              # SMOTE balance ratio (0.8=80%, 1.0=100%)
+}
+```
+
+Individual modules can be disabled using execution control flags:
+```python
+EXECUTE_SCRAPING = True   # Set to False to skip scraping
+EXECUTE_GROUPER = True    # Set to False to skip grouping
+EXECUTE_CLEANING = True   # Set to False to skip cleaning
+```
+
+## Pipeline Components
+
+The BitBot data pipeline consists of three sequential modules:
 
 ### 1. Scraping Module
 
@@ -38,105 +80,136 @@ The **Grouper** module transforms individual candle data into training-ready sam
 
 ### 3. Cleaning Module (Limpieza)
 
-The **Cleaning** module takes the grouped data and prepares it for machine learning by performing essential preprocessing tasks. This is the final step that generates the train and test datasets:
+The **Cleaning** module prepares grouped data for machine learning by performing preprocessing tasks:
 
 - **Data Exploration**: Analyzes dataset structure and characteristics
-- **Data Partitioning**: Splits data into training and testing sets (80/20 default)
-- **Outlier Detection**: Identifies and visualizes atypical data points using IQR method
-- **Categorical Encoding**: Converts categorical variables (e.g., day of week) to numeric format
-- **Correlation Analysis**: Calculates and visualizes feature relationships
-- **Class Distribution Analysis**: Assesses target variable balance
+- **Chronological Partitioning**: Splits data into train/test sets maintaining temporal order (default 80/20)
+- **Categorical Encoding**: Converts day of week to ordinal numeric values
+- **Temporal Column Management**: Removes/keeps temporal features based on configuration
+- **Class Balancing**: Applies SMOTE with configurable ratio (0.8=80% balanced, 1.0=100% balanced)
+  - Automatic detection of already-balanced classes
+  - Auto-adjustment of k_neighbors for small datasets
+  - See [SAMPLING_STRATEGY_GUIDE.md](SAMPLING_STRATEGY_GUIDE.md) for detailed configuration
 
-**Output:** Cleaned datasets (`x_train.csv`, `x_test.csv`, `y_train.csv`, `y_test.csv`) and analysis reports - ready for model evaluation
+**Output:** Train/test datasets (`x_train.csv`, `x_test.csv`, `y_train.csv`, `y_test.csv`) ready for model training
 
-## Workflow
-
-The complete data pipeline follows this sequential workflow:
+## Pipeline Workflow
 
 ```
-1. Scraping
-   ↓
-   [Raw Bitcoin candle data from Binance API]
-   ↓
-2. Grouper
-   ↓
-   [Grouped datasets with features and targets]
-   ↓
-3. Cleaning
-   ↓
-   [Cleaned, encoded, and partitioned train/test datasets]
-   ↓
-   Ready for ML Model Training and Evaluation
+┌─────────────────────────────────────────────────────────────┐
+│                       main.py                               │
+│                  Pipeline Orchestrator                      │
+└─────────────────────────────────────────────────────────────┘
+                            │
+                            ▼
+        ┌───────────────────────────────────────┐
+        │  STEP 1: Scraping                     │
+        │  • Binance API data collection        │
+        │  • Candle processing                  │
+        │  Output: bitcoin_candles.csv          │
+        └───────────────────────────────────────┘
+                            │
+                            ▼
+        ┌───────────────────────────────────────┐
+        │  STEP 2: Grouper                      │
+        │  • Sliding window grouping            │
+        │  • Feature extraction                 │
+        │  Output: data_grouped.csv             │
+        └───────────────────────────────────────┘
+                            │
+                            ▼
+        ┌───────────────────────────────────────┐
+        │  STEP 3: Cleaning                     │
+        │  • Chronological train/test split     │
+        │  • Encoding & preprocessing           │
+        │  • SMOTE class balancing              │
+        │  Output: x_train, x_test, y_train,    │
+        │          y_test (CSV files)           │
+        └───────────────────────────────────────┘
+                            │
+                            ▼
+              Ready for ML Model Training
 ```
 
-## Getting Started
+## Quick Start
 
 ### Prerequisites
 
 - Python 3.7+
-- Required packages: `pandas`, `numpy`, `aiohttp`, `matplotlib`, `seaborn`, `scikit-learn`
+- Required packages: `pandas`, `numpy`, `aiohttp`, `scikit-learn`, `imbalanced-learn`
 
-### Execution Order
+### Execution
 
-To process data through the complete pipeline, execute the modules in this order:
+**Option 1: Run Complete Pipeline (Recommended)**
+```bash
+python main.py
+```
 
-1. **Run Scraping Module:**
-   ```bash
-   cd scraping/src
-   python main.py
-   ```
+**Option 2: Run Individual Modules**
+```bash
+# Step 1: Scraping
+cd scraping/src && python main.py
 
-2. **Run Grouper Module:**
-   ```bash
-   cd grouper/src
-   python main.py
-   ```
+# Step 2: Grouper
+cd grouper/src && python main.py
 
-3. **Run Cleaning Module:**
-   ```bash
-   cd limpieza/src
-   python main.py
-   ```
+# Step 3: Cleaning
+cd limpieza/src && python main.py
+```
 
-The cleaning module will generate the final train and test datasets ready for model evaluation.
+### Configuration
 
-Each module can be configured independently. See the individual README files in each module's directory for detailed configuration options.
+All parameters are centralized in [main.py](main.py#L46-L70). Modify the configuration dictionaries to customize the pipeline behavior. Key configurable parameters include:
+
+- **Scraping**: Date range, candle size, return thresholds
+- **Grouper**: Training window size, prediction horizon
+- **Cleaning**: Test split ratio, temporal features, SMOTE balance ratio
+
+See [SAMPLING_STRATEGY_GUIDE.md](SAMPLING_STRATEGY_GUIDE.md) for detailed SMOTE configuration options.
 
 ## Project Structure
 
 ```
 BitBot/
-├── scraping/          # Data collection module
-│   ├── data/         # Collected Bitcoin candle data
-│   ├── src/          # Source code
-│   └── readme.md     # Detailed scraping documentation
-├── limpieza/         # Data cleaning module
-│   ├── data/         # Cleaned datasets (train/test splits)
-│   ├── results/      # Analysis reports and visualizations
-│   ├── src/          # Source code
-│   └── readme.md     # Detailed cleaning documentation
-├── grouper/          # Data grouping module
-│   ├── data/         # Grouped training datasets
-│   ├── src/          # Source code
-│   └── readme.md     # Detailed grouping documentation
-└── readme.md         # This file
+├── main.py                          # Pipeline orchestrator - single entry point
+├── SAMPLING_STRATEGY_GUIDE.md       # SMOTE configuration guide
+│
+├── scraping/                        # Data collection module
+│   ├── data/                        # Output: bitcoin_candles.csv
+│   ├── src/                         # Source code
+│   │   └── main.py                  # Scraping implementation
+│   └── readme.md                    # Module documentation
+│
+├── grouper/                         # Data grouping module
+│   ├── data/                        # Output: data_grouped.csv
+│   ├── src/                         # Source code
+│   │   └── main.py                  # Grouping implementation
+│   └── readme.md                    # Module documentation
+│
+├── limpieza/                        # Data cleaning module
+│   ├── data/                        # Output: x_train, x_test, y_train, y_test
+│   ├── src/                         # Source code
+│   │   ├── main.py                  # Cleaning orchestrator
+│   │   └── balance_clases.py        # SMOTE balancing implementation
+│   └── readme.md                    # Module documentation
+│
+└── readme.md                        # This file
 ```
+
+## Module Documentation
+
+For detailed implementation information:
+
+- [Scraping Module](scraping/Readme.md) - Data collection from Binance API
+- [Grouper Module](grouper/readme.md) - Sliding window feature extraction
+- [Cleaning Module](limpieza/readme.md) - Preprocessing and balancing
+- [SMOTE Configuration Guide](SAMPLING_STRATEGY_GUIDE.md) - Class balancing options
 
 ## Next Steps
 
-After completing the data pipeline phase, the processed datasets will be used for:
-
-- Training machine learning models (e.g., Random Forest, XGBoost, Neural Networks)
+The processed datasets are ready for:
+- Machine learning model training (Random Forest, XGBoost, Neural Networks)
 - Model evaluation and validation
 - Hyperparameter tuning
-- Prediction and backtesting
-- Deployment of prediction models
-
-## Documentation
-
-For detailed information about each module, please refer to the individual README files:
-
-- [Scraping Module Documentation](scraping/Readme.md)
-- [Cleaning Module Documentation](limpieza/readme.md)
-- [Grouper Module Documentation](grouper/readme.md)
+- Backtesting and deployment
 
